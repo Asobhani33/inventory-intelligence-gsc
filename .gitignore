@@ -1,0 +1,30 @@
+# Large/raw data — regenerate via notebooks/01_data_acquisition.ipynb, don't version it
+data/raw/online_retail/*.csv
+data/raw/online_retail/*.xlsx
+data/processed/*.parquet
+data/processed/*.csv
+data/synthetic/*.parquet
+data/synthetic/*.csv
+
+# keep small reference files under raw/brunel_logistics (already <1MB total) versioned intentionally
+!data/raw/brunel_logistics/*.csv
+!data/raw/brunel_logistics/*.xlsx
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+*.egg-info/
+
+# OS / editor
+.DS_Store
+.vscode/
+
+# Power BI
+*.pbix.bak
+
+# secrets
+.env
+*.key
