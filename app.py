@@ -33,15 +33,32 @@ st.caption(
     "the project's own processed tables (Phases 3-5), never invented."
 )
 
+# On Streamlit Community Cloud, a key set in the app's Secrets is available
+# via st.secrets and is shared by every visitor (one server process serves
+# everyone), so the public chatbot works without each person needing their
+# own OpenAI key. Locally, there's no secrets.toml — st.secrets access is
+# wrapped so that doesn't crash the app.
+try:
+    _cloud_key = st.secrets.get("OPENAI_API_KEY")
+except Exception:  # noqa: BLE001 — no secrets.toml present (local run)
+    _cloud_key = None
+if _cloud_key and not os.environ.get("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = _cloud_key
+
 with st.sidebar:
     st.header("Setup")
-    api_key_input = st.text_input(
-        "OpenAI API key", type="password",
-        value=os.environ.get("OPENAI_API_KEY", ""),
-        help="Kept only in this browser session — never written to disk or committed to the repo.",
-    )
-    if api_key_input:
-        os.environ["OPENAI_API_KEY"] = api_key_input
+    if os.environ.get("OPENAI_API_KEY"):
+        # Key already available (from Secrets, or an env var on your own
+        # machine) — don't show an input that could let a visitor overwrite
+        # the shared key for everyone else using this same deployment.
+        st.success("OpenAI connected ✅")
+    else:
+        api_key_input = st.text_input(
+            "OpenAI API key", type="password",
+            help="Kept only in this browser session — never written to disk or committed to the repo.",
+        )
+        if api_key_input:
+            os.environ["OPENAI_API_KEY"] = api_key_input
 
     st.divider()
     st.subheader("Data snapshot")

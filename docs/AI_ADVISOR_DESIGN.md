@@ -25,16 +25,27 @@ in `data/processed/`.
 ```
 app.py (Streamlit UI)
   -> src/ai_advisor/agent.py   (OpenAI tool-calling loop + system prompt)
-       -> src/ai_advisor/tools.py        (9 tool functions + their JSON schemas)
-            -> src/ai_advisor/data_access.py   (loads/caches the processed parquet + SQLite tables)
+       -> src/ai_advisor/tools.py        (10 tool functions + their JSON schemas)
+            -> src/ai_advisor/data_access.py   (loads/caches the processed parquet tables)
 ```
 
 - **`data_access.py`** — loads every table the tools need once, cached in
   memory (`functools.lru_cache`). A "Reload data" button in the app's
   sidebar clears the cache, so re-running the pipeline notebooks and
   clicking reload picks up fresh numbers without restarting the app.
-- **`tools.py`** — nine narrow functions, each answering one kind of
-  question (network summary, one warehouse's detail, why inventory moved,
+  Everything now loads from small parquet files under `data/processed/`
+  (including `dim_sku.parquet` / `dim_warehouse.parquet`, exported once
+  from the project's SQLite database) — earlier this read `dim_sku` /
+  `dim_warehouse` live from `data/inventory_performance.db`, but that file
+  is 130+MB, over GitHub's 100MB limit and not something a public
+  deployment can regenerate on its own, so those two small dimension
+  tables were exported to parquet and the SQLite dependency was dropped
+  entirely. `load_all()` never touches the raw fact tables or the
+  database file — only the small recommendation, KPI, forecast, and
+  dimension tables the tools actually need.
+- **`tools.py`** — ten narrow functions, each answering one kind of
+  question (network summary, one warehouse's detail, network- or
+  warehouse-level inventory trend over time, why inventory moved,
   stockout risk, one SKU's detail, replenishment recommendations, transfer
   plan, forecast accuracy, health-score breakdown). Every function returns
   plain JSON-serializable data — no free text — so there's nothing for the
@@ -43,10 +54,21 @@ app.py (Streamlit UI)
   the schemas in `tools.py`. The system prompt is explicit: answer only
   from tool output, say so when a tool returns nothing, and surface any
   `note`/`method_note` field a tool includes (see below) rather than
-  smoothing it over.
-- **`app.py`** — a chat UI, a sidebar for the API key (kept in the browser
-  session only — never written to disk) and a live data snapshot, plus a
-  reload button.
+  smoothing it over. `chat()` returns not just the reply text but also the
+  list of tool calls made that turn (name, arguments, result), so the UI
+  layer can act on a tool's raw result — e.g. plot it — without re-parsing
+  the conversation.
+- **`app.py`** — the chat UI. When `get_inventory_trend` is called, the
+  app pulls its monthly series straight out of the tool-call result and
+  renders it as a bar chart under the reply, so trend questions get a
+  picture, not just a paragraph of numbers. The OpenAI key comes from
+  Streamlit Secrets when deployed (see "Public deployment" below) so the
+  app works for any visitor without them supplying their own key; locally,
+  it falls back to the `OPENAI_API_KEY` environment variable or a sidebar
+  input. The sidebar's key input only ever renders when no key is already
+  configured — once a key is present (from Secrets or the environment) the
+  input is hidden, so a visitor typing into it on a public deployment can
+  never overwrite the shared key for everyone else.
 
 ## A note on "explainability" — what's real SHAP and what isn't
 
@@ -84,16 +106,40 @@ picks the OpenAI model if you want to try a different one.
 
 - "How's the network doing overall?"
 - "Why is inventory so high at PLANT03?"
+- "Why has network inventory dropped over the last few months?" (network-
+  or warehouse-wide, increases and decreases — `get_inventory_trend`)
 - "Which SKUs have the highest stockout risk right now?"
 - "What's the transfer plan, and what still needs a fresh PO?"
 - "How accurate is the demand forecast?"
 - "Why is SKU 1667817 at PLANT03 rated Watch instead of Healthy?"
 
+## Public deployment
+
+The app is deployed on Streamlit Community Cloud, deployed straight from
+this GitHub repo (`app.py` as the entry point, Python 3.11, `OPENAI_API_KEY`
+set as a Streamlit Secret rather than typed in by each visitor). That
+deployment is what makes the "shared, always-on" AI Advisor possible: the
+Power BI report links out to it with a button (see below), rather than
+each person needing their own OpenAI key or a local Python environment.
+
+**Why the Power BI page links out instead of embedding the chat in an
+iframe:** Power BI Desktop does not render `<iframe>` content inside any
+custom visual, in any report — this is a platform-level sandboxing
+restriction, not a gap in any particular visual, and it holds even for a
+custom "HTML content" visual side-loaded from a `.pbiviz` file. Since this
+project's `.pbix` is shared as a file that recipients open in their own
+Power BI Desktop (not published to Power BI Service), a true embedded
+chat panel isn't achievable here. The "AI Advisor" report page instead
+carries a styled panel with a button (`Action` → `Web URL`) that opens the
+public Streamlit app in a new browser tab — functionally the same
+outcome (anyone with the report can use the live chatbot with one click),
+just not literally inside the report canvas.
+
 ## Known limitations (documented on purpose, not hidden)
 
 - No conversation memory beyond the current browser session (Streamlit's
   `session_state` resets on page reload).
-- The nine tools cover the questions this project's data can actually
+- The ten tools cover the questions this project's data can actually
   answer well — they don't attempt open-ended SQL generation, which would
   risk the model writing an incorrect query against a real production
   database. For a portfolio project this trade-off (safety and precision
@@ -104,3 +150,6 @@ picks the OpenAI model if you want to try a different one.
   Phase 4 test-period snapshot and Phase 3 monthly diagnostic table
   respectively — both reflect whatever was true when those notebooks were
   last run, not a live re-computation.
+- The public deployment shares one OpenAI key (and its usage/cost) across
+  every visitor — fine for a portfolio demo, but a real multi-tenant
+  deployment would need per-user auth and rate limiting.
