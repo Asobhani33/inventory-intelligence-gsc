@@ -5,6 +5,21 @@ data/processed/*.parquet
 data/processed/*.csv
 data/synthetic/*.parquet
 data/synthetic/*.csv
+data/*.db
+data/powerbi/*.parquet
+
+# ...except the small parquet files the AI Advisor app (app.py / Phase 7)
+# reads at runtime. Streamlit Community Cloud just runs this repo as-is —
+# it can't execute the notebooks to regenerate data on deploy — so these
+# (all small aggregate/dimension tables, never the 1.5M-row fact data or
+# the 130+MB SQLite db) are intentionally versioned:
+!data/processed/forecast_test_predictions.parquet
+!data/processed/dim_sku.parquet
+!data/processed/dim_warehouse.parquet
+!data/processed/kpi_tables/
+!data/processed/kpi_tables/*.parquet
+!data/processed/recommendations/
+!data/processed/recommendations/*.parquet
 
 # keep small reference files under raw/brunel_logistics (already <1MB total) versioned intentionally
 !data/raw/brunel_logistics/*.csv
@@ -22,7 +37,11 @@ venv/
 .DS_Store
 .vscode/
 
-# Power BI
+# Power BI — the .pbix itself isn't versioned (can get large with 1.5M-row
+# facts, and needs Power BI Desktop to open anyway); rebuild it from
+# data/powerbi/ + docs/POWERBI_BUILD_GUIDE.md. Screenshots of each page live
+# in docs/ instead, for anyone browsing the repo without Power BI installed.
+powerbi/*.pbix
 *.pbix.bak
 
 # secrets
