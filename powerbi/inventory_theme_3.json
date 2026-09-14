@@ -1,0 +1,49 @@
+{
+  "name": "Inventory Intelligence — Modern",
+  "dataColors": [
+    "#7C5CF0",
+    "#0BB8C9",
+    "#E0489A",
+    "#E0930F",
+    "#14B881",
+    "#E34D5C",
+    "#4338CA",
+    "#0E7490"
+  ],
+  "background": "#FFFFFF",
+  "backgroundLight": "#F4F5FA",
+  "backgroundNeutral": "#E6E7F0",
+  "foreground": "#14132B",
+  "foregroundNeutralSecondary": "#5C5B74",
+  "foregroundNeutralTertiary": "#9493A8",
+  "tableAccent": "#7C5CF0",
+  "good": "#14B881",
+  "neutral": "#E0930F",
+  "bad": "#E34D5C",
+  "maximum": "#7C5CF0",
+  "center": "#F0EFEC",
+  "minimum": "#0BB8C9",
+  "null": "#9493A8",
+  "textClasses": {
+    "label": {
+      "fontFace": "Segoe UI",
+      "fontSize": 10,
+      "color": "#5C5B74"
+    },
+    "callout": {
+      "fontFace": "Segoe UI Semibold",
+      "fontSize": 28,
+      "color": "#14132B"
+    },
+    "title": {
+      "fontFace": "Segoe UI Semibold",
+      "fontSize": 14,
+      "color": "#14132B"
+    },
+    "header": {
+      "fontFace": "Segoe UI Semibold",
+      "fontSize": 22,
+      "color": "#14132B"
+    }
+  }
+}

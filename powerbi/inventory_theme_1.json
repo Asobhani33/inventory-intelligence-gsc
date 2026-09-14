@@ -1,0 +1,49 @@
+{
+  "name": "Inventory Intelligence — Industrial",
+  "dataColors": [
+    "#2a78d6",
+    "#eb6834",
+    "#1baf7a",
+    "#eda100",
+    "#e87ba4",
+    "#008300",
+    "#4a3aa7",
+    "#e34948"
+  ],
+  "background": "#FCFCFB",
+  "backgroundLight": "#F9F9F7",
+  "backgroundNeutral": "#E1E0D9",
+  "foreground": "#0B0B0B",
+  "foregroundNeutralSecondary": "#52514E",
+  "foregroundNeutralTertiary": "#898781",
+  "tableAccent": "#2A78D6",
+  "good": "#0CA30C",
+  "neutral": "#FAB219",
+  "bad": "#D03B3B",
+  "maximum": "#2A78D6",
+  "center": "#F0EFEC",
+  "minimum": "#E34948",
+  "null": "#898781",
+  "textClasses": {
+    "label": {
+      "fontFace": "Segoe UI",
+      "fontSize": 10,
+      "color": "#52514E"
+    },
+    "callout": {
+      "fontFace": "Segoe UI Semibold",
+      "fontSize": 28,
+      "color": "#0B0B0B"
+    },
+    "title": {
+      "fontFace": "Segoe UI Semibold",
+      "fontSize": 14,
+      "color": "#0B0B0B"
+    },
+    "header": {
+      "fontFace": "Segoe UI Semibold",
+      "fontSize": 22,
+      "color": "#0B0B0B"
+    }
+  }
+}
