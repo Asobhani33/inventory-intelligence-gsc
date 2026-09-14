@@ -74,6 +74,17 @@ def get_warehouse_detail(warehouse_id: str) -> dict:
     r = _df("replenishment")
     sub = r[r["warehouse_id"] == warehouse_id]
     if sub.empty:
+        w = _df("dim_warehouse")
+        if warehouse_id in w["warehouse_id"].values:
+            # A real warehouse in the network (real Brunel handling-cost/
+            # capacity data exists for it) that simply has zero SKUs assigned
+            # to it in ProductsPerPlant — not a data error, just an empty
+            # warehouse. PLANT19 is the one case of this in the current data.
+            return {"warehouse_id": warehouse_id,
+                    "note": (f"{warehouse_id} is a real warehouse in the network (it has handling-cost "
+                              "and capacity data), but no SKUs are assigned to it in the source data, so "
+                              "it has no inventory, demand, or health metrics to report."),
+                    "sku_count": 0, "total_inventory_value": 0.0}
         return {"error": f"No data for warehouse_id='{warehouse_id}'. "
                           f"Valid IDs: {sorted(r['warehouse_id'].unique().tolist())}"}
     top_excess = sub[sub["is_excess"]].sort_values("excess_value", ascending=False).head(5)
@@ -149,6 +160,39 @@ def get_inventory_trend(warehouse_id: Optional[str] = None, months_back: int = 6
         ),
         "biggest_increase_in_window": _row_to_records(biggest_increase)[0] if len(biggest_increase) else None,
         "biggest_decrease_in_window": _row_to_records(biggest_decrease)[0] if len(biggest_decrease) else None,
+    }
+
+
+# --------------------------------------------------------------------------
+# 3c. Consumption ($) value — network-wide or per-warehouse, estimated from
+#     each SKU x Warehouse row's own trailing 90-day average daily demand.
+#     (No raw daily transaction table is shipped with the deployed app — only
+#     the aggregated 90-day figure kpi_engine already computed — so this is
+#     an explicit estimate, not a literal sum of one calendar month's actual
+#     transactions, and says so via method_note.)
+# --------------------------------------------------------------------------
+
+def get_consumption_value(warehouse_id: Optional[str] = None) -> dict:
+    """Estimated monthly consumption ($) value — network-wide, or for one
+    warehouse — derived from each row's trailing-90-day average daily demand
+    x unit cost x ~30.44 days. Use this whenever the user asks how much
+    inventory is being consumed/used per month, in dollars, by warehouse."""
+    r = _df("replenishment")
+    sub = r if warehouse_id is None else r[r["warehouse_id"] == warehouse_id]
+    if sub.empty:
+        return {"error": f"No data for warehouse_id='{warehouse_id}'."}
+    sub = sub.copy()
+    sub["monthly_consumption_value"] = sub["avg_daily_demand_90d"] * sub["unit_cost"] * 30.44
+    by_warehouse = (sub.groupby("warehouse_id")["monthly_consumption_value"].sum()
+                     .round(2).reset_index().sort_values("monthly_consumption_value", ascending=False))
+    return {
+        "scope": warehouse_id or "whole network",
+        "total_monthly_consumption_value": round(float(sub["monthly_consumption_value"].sum()), 2),
+        "by_warehouse": _row_to_records(by_warehouse) if warehouse_id is None else None,
+        "method_note": ("Estimated as trailing-90-day average daily demand x unit cost x 30.44 days per "
+                         "SKU x Warehouse row, then summed — not a literal sum of one calendar month's "
+                         "actual transactions, since only the aggregated 90-day figure is available to "
+                         "this app (no raw daily demand table is shipped for deployment size reasons)."),
     }
 
 
@@ -345,6 +389,7 @@ TOOL_FUNCTIONS = {
     "get_network_summary": get_network_summary,
     "get_warehouse_detail": get_warehouse_detail,
     "get_inventory_trend": get_inventory_trend,
+    "get_consumption_value": get_consumption_value,
     "why_is_inventory_high": why_is_inventory_high,
     "get_stockout_risks": get_stockout_risks,
     "get_excess_items": get_excess_items,
@@ -374,6 +419,13 @@ TOOL_SPECS = [
         "parameters": {"type": "object", "properties": {
             "warehouse_id": {"type": "string", "description": "Omit for the whole network."},
             "months_back": {"type": "integer", "description": "How many recent months to include (default 6)."},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "get_consumption_value",
+        "description": "Estimated monthly consumption ($) value, network-wide (with a per-warehouse breakdown) or for one warehouse. Use for any 'how much is being consumed/used per month, in dollars' question — different from inventory VALUE (get_inventory_trend), which is stock sitting on hand, not stock being used up.",
+        "parameters": {"type": "object", "properties": {
+            "warehouse_id": {"type": "string", "description": "Omit for the whole network (returns a per-warehouse breakdown)."},
         }},
     }},
     {"type": "function", "function": {

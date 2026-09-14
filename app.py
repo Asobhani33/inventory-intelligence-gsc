@@ -129,7 +129,7 @@ def _extract_trend_chart(tool_calls: list[dict]) -> pd.DataFrame | None:
 # Tool result keys that hold a list of records worth showing as a table,
 # in priority order (first match wins) — covers every list-returning tool
 # in tools.py so any of them renders as a real table, not just text.
-_TABLE_KEYS = ["results", "rows", "transfer_moves"]
+_TABLE_KEYS = ["results", "rows", "transfer_moves", "by_warehouse"]
 
 
 def _extract_table(tool_calls: list[dict]) -> pd.DataFrame | None:
