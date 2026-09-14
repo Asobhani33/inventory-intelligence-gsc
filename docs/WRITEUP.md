@@ -39,9 +39,12 @@ shortage-driven ordering) — not just that it moved.
 
 **3. Predictive.** Two models per SKU×warehouse: a demand forecast
 (LightGBM/statsmodels) and a 30-day stockout-risk classifier, both
-evaluated honestly (forecast WAPE reported as 40.9% — the synthetic demand
-series is intentionally noisy, and the number isn't smoothed over to look
-better than it is).
+evaluated honestly (forecast WAPE reported as 39.9%, using a global
+LightGBM model with a Tweedie objective — suited to this demand series'
+zero-inflation, 22% of weekly rows are exactly zero — and early stopping
+against a held-out validation window; the synthetic demand series is
+intentionally noisy, and the number isn't smoothed over to look better
+than it is).
 
 **4. Prescriptive.** Dynamic reorder points from observed 90-day demand,
 an excess/shortage optimizer that matches excess stock at one warehouse
@@ -52,7 +55,7 @@ inventing a transfer that wouldn't actually solve the shortage.
 
 **5. Decision layer, not just analysis layer.** A 7-page Power BI report
 turns all of the above into something a planner would actually open every
-morning, and a generative-AI advisor (OpenAI tool-calling over 10 typed
+morning, and a generative-AI advisor (OpenAI tool-calling over 11 typed
 Python functions, never free-text generation against raw data) lets
 anyone ask the network a question in plain language and get back an exact,
 traceable number — deployed publicly so the chatbot isn't a local demo
@@ -77,7 +80,7 @@ built against a real ERP (SAP, Oracle, Infor, etc.) would need:
 - **Real demand and lead-time history** in place of the synthetic layer —
   the forecast and stockout-risk models would very likely perform
   meaningfully better against real transaction history than against this
-  project's intentionally-noisy synthetic demand (WAPE 40.9% here should
+  project's intentionally-noisy synthetic demand (WAPE 39.9% here should
   not be read as a ceiling on the approach itself).
 - **Real freight/transfer cost data** by lane, replacing the
   region-surcharge approximation this project uses — this is the single
@@ -102,6 +105,17 @@ built against a real ERP (SAP, Oracle, Infor, etc.) would need:
   publish (not a shared `.pbix` file) or a genuinely custom Power BI
   visual built and signed for the organization, both of which sidestep
   the Desktop iframe restriction this project hit.
+- **A live data feed to trigger real alerts.** This project deliberately did
+  not build a push-alert mechanism (email/Slack when a SKU crosses into
+  Critical, or stockout risk passes a threshold) — the underlying data here
+  is a static snapshot, not a live feed, so a scheduled check would never
+  find anything new to alert on, which would make the feature a hollow
+  demo rather than a real capability. The health-tier and stockout-risk
+  logic already in this project (`kpi_engine.compute_health_score`,
+  `get_stockout_risks`) is exactly the rule set a real alert engine would
+  run — against a live ERP feed, the same thresholds would drive an actual
+  notification pipeline instead of only being visible on request (Power BI
+  report or AI Advisor query).
 
 None of these are hidden gaps discovered after the fact — each is a
 direct, named consequence of a scope decision made explicitly to keep this
