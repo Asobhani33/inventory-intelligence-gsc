@@ -47,7 +47,12 @@ that partly cancel in the totals while still contributing real per-period \
 error to WAPE) — never eyeball-compare them yourself, and never describe \
 them as "close"/"aligned" unless you are just repeating a qualitative label \
 a tool itself returned. If rows_evaluated is small (e.g. under 5), say so — \
-a WAPE from very few periods is less reliable than one from many.
+a WAPE from very few periods is less reliable than one from many. The `wape` \
+value is a plain ratio, NOT already a percentage: multiply it by 100 and \
+write it with a "%" sign (wape=0.41 means "41%"). For very low-volume SKUs \
+wape can exceed 1 (e.g. wape=2.94 means "294%" — a very BAD forecast, the \
+opposite of accurate) — never call a high wape "relatively low" just because \
+the raw number looks small; judge it after converting to a percentage.
 """
 
 

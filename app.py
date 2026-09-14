@@ -103,10 +103,33 @@ def _extract_trend_chart(tool_calls: list[dict]) -> pd.DataFrame | None:
     return None
 
 
+# Tool result keys that hold a list of records worth showing as a table,
+# in priority order (first match wins) — covers every list-returning tool
+# in tools.py so any of them renders as a real table, not just text.
+_TABLE_KEYS = ["results", "rows", "transfer_moves"]
+
+
+def _extract_table(tool_calls: list[dict]) -> pd.DataFrame | None:
+    """If any tool called this turn returned a list of records (SKUs,
+    recommendations, transfer moves, ...), build a DataFrame from the last
+    such call so the UI can show a real table, not just prose."""
+    for call in reversed(tool_calls):
+        result = call.get("result") or {}
+        for key in _TABLE_KEYS:
+            records = result.get(key)
+            if records:
+                df = pd.DataFrame(records)
+                if not df.empty:
+                    return df
+    return None
+
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "turn_charts" not in st.session_state:
     st.session_state.turn_charts = {}  # message index -> DataFrame
+if "turn_tables" not in st.session_state:
+    st.session_state.turn_tables = {}  # message index -> DataFrame
 
 for i, m in enumerate(st.session_state.messages):
     if m["role"] in ("user", "assistant") and m.get("content"):
@@ -114,6 +137,8 @@ for i, m in enumerate(st.session_state.messages):
             st.markdown(m["content"])
             if i in st.session_state.turn_charts:
                 st.bar_chart(st.session_state.turn_charts[i])
+            if i in st.session_state.turn_tables:
+                st.dataframe(st.session_state.turn_tables[i], hide_index=True)
 
 prompt = st.chat_input("Ask the Inventory Advisor...")
 if prompt:
@@ -137,3 +162,8 @@ if prompt:
             if chart_df is not None:
                 st.bar_chart(chart_df)
                 st.session_state.turn_charts[len(st.session_state.messages) - 1] = chart_df
+
+            table_df = _extract_table(tool_calls)
+            if table_df is not None:
+                st.dataframe(table_df, hide_index=True)
+                st.session_state.turn_tables[len(st.session_state.messages) - 1] = table_df
