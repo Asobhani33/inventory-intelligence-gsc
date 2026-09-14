@@ -76,14 +76,36 @@ with st.sidebar:
 
     st.divider()
     st.subheader("Try asking")
-    for example in [
-        "How's the network doing overall?",
-        "Why is inventory so high at PLANT03?",
-        "Which SKUs have the highest stockout risk right now?",
-        "What's the transfer plan, and what still needs a fresh PO?",
-        "How accurate is the demand forecast?",
-    ]:
-        st.code(example, language=None)
+    st.caption("Click a question to ask it — one covers most of what the Advisor can do.")
+    _EXAMPLE_QUESTIONS = {
+        "Network": [
+            "How's the network doing overall?",
+            "Show me the inventory value trend for the last 6 months",
+            "Give me a detailed breakdown of PLANT03",
+        ],
+        "Risk": [
+            "Which SKUs have the highest stockout risk right now?",
+            "Why is inventory so high at PLANT03?",
+        ],
+        "Replenishment": [
+            "What replenishment actions are needed at PLANT05?",
+            "What's the transfer plan, and what still needs a fresh PO?",
+        ],
+        "Forecast": [
+            "How accurate is the demand forecast?",
+        ],
+        "SKU detail": [
+            "Tell me everything about SKU 1654431",
+            "Why is SKU 1654431 at PLANT01 in the Watch tier?",
+        ],
+    }
+    if "pending_prompt" not in st.session_state:
+        st.session_state.pending_prompt = None
+    for category, questions in _EXAMPLE_QUESTIONS.items():
+        st.caption(f"**{category}**")
+        for q in questions:
+            if st.button(q, key=f"example_{q}", use_container_width=True):
+                st.session_state.pending_prompt = q
 
 def _extract_trend_chart(tool_calls: list[dict]) -> pd.DataFrame | None:
     """If a get_inventory_trend tool was called this turn, build a small
@@ -141,6 +163,11 @@ for i, m in enumerate(st.session_state.messages):
                 st.dataframe(st.session_state.turn_tables[i], hide_index=True)
 
 prompt = st.chat_input("Ask the Inventory Advisor...")
+if not prompt and st.session_state.pending_prompt:
+    # A sidebar example-question button was clicked this run instead of
+    # typing into the chat box — treat it exactly like a typed prompt.
+    prompt = st.session_state.pending_prompt
+    st.session_state.pending_prompt = None
 if prompt:
     if not os.environ.get("OPENAI_API_KEY"):
         st.error("Enter your OpenAI API key in the sidebar first.")
