@@ -171,6 +171,35 @@ def get_stockout_risks(min_probability: float = 0.5, limit: int = 10) -> dict:
 
 
 # --------------------------------------------------------------------------
+# 4b. Excess inventory items (network-wide, with $ value — unlike
+#     get_replenishment_recommendations' "Reduce / hold" filter, which
+#     returns the same SKUs but without excess_value)
+# --------------------------------------------------------------------------
+
+def get_excess_items(warehouse_id: Optional[str] = None, limit: int = 20) -> dict:
+    """SKU x Warehouse rows currently flagged as excess stock (is_excess),
+    sorted by excess $ value descending — network-wide, or filtered to one
+    warehouse. Use this whenever the user asks for an excess-inventory
+    report/list with dollar values, not just a warehouse's top 5."""
+    r = _df("replenishment")
+    sub = r[r["is_excess"]]
+    if warehouse_id:
+        sub = sub[sub["warehouse_id"] == warehouse_id]
+    if sub.empty:
+        return {"matching_count": 0, "total_excess_value": 0.0, "results": []}
+    sub = sub.sort_values("excess_value", ascending=False)
+    return {
+        "matching_count": int(len(sub)),
+        "total_excess_value": round(float(sub["excess_value"].sum()), 2),
+        "results": _row_to_records(
+            sub[["sku", "warehouse_id", "category", "abc_class", "on_hand_qty",
+                 "unit_cost", "excess_value", "days_of_supply"]],
+            limit=limit,
+        ),
+    }
+
+
+# --------------------------------------------------------------------------
 # 5. Single-SKU detail
 # --------------------------------------------------------------------------
 
@@ -318,6 +347,7 @@ TOOL_FUNCTIONS = {
     "get_inventory_trend": get_inventory_trend,
     "why_is_inventory_high": why_is_inventory_high,
     "get_stockout_risks": get_stockout_risks,
+    "get_excess_items": get_excess_items,
     "get_sku_detail": get_sku_detail,
     "get_replenishment_recommendations": get_replenishment_recommendations,
     "get_transfer_recommendations": get_transfer_recommendations,
@@ -360,6 +390,14 @@ TOOL_SPECS = [
         "parameters": {"type": "object", "properties": {
             "min_probability": {"type": "number", "description": "Minimum 30-day stockout probability, 0-1 (default 0.5)."},
             "limit": {"type": "integer", "description": "Max rows to return (default 10)."},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "get_excess_items",
+        "description": "Network-wide (or one-warehouse) report of SKUs currently flagged as excess stock, sorted by excess dollar value descending, with a total excess value for the filter. Use this for any 'excess inventory report/list' question — get_replenishment_recommendations' 'Reduce / hold' filter returns the same SKUs but without dollar values.",
+        "parameters": {"type": "object", "properties": {
+            "warehouse_id": {"type": "string", "description": "Omit for the whole network."},
+            "limit": {"type": "integer", "description": "Max rows to return (default 20)."},
         }},
     }},
     {"type": "function", "function": {

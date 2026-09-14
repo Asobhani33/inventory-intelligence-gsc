@@ -86,6 +86,7 @@ with st.sidebar:
         "Risk": [
             "Which SKUs have the highest stockout risk right now?",
             "Why is inventory so high at PLANT03?",
+            "Give me a report of excess inventory across the network",
         ],
         "Replenishment": [
             "What replenishment actions are needed at PLANT05?",
