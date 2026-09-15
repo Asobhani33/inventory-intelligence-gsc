@@ -66,9 +66,14 @@ documented rather than papered over — the Brunel freight-rate data
 turning out unusable for transfer costing (single hub port only), SHAP
 explanations that couldn't be persisted because the Phase 4 models were
 never serialized, a 130MB SQLite file that had to be replaced with small
-parquet exports for public deployment, and a Power BI platform restriction
-that rules out a literally-embedded chatbot in a shared `.pbix` file. A
-portfolio project that only shows the parts that worked isn't a credible
+parquet exports for public deployment, a Power BI platform restriction
+that rules out a literally-embedded chatbot in a shared `.pbix` file, and
+the default page-navigation strip in Power BI Desktop that can't be fully
+hidden for a standalone `.pbix` opened in Desktop (that control only
+exists after publishing to Power BI Service or a Power BI App, neither of
+which this project uses) — the report's own custom sidebar navigation
+sits alongside it rather than replacing it, a known Desktop limitation,
+not an oversight. A portfolio project that only shows the parts that worked isn't a credible
 demonstration of how someone works through the parts that didn't.
 
 ## What a real-ERP version would need
