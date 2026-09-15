@@ -14,4 +14,4 @@ the current status any time:
 | 5. Prescriptive optimization | ✅ Done | `src/optimization_engine.py`, `notebooks/05_prescriptive_optimization.ipynb` |
 | 6. Power BI decision dashboard | ✅ Done | `powerbi/inventory_performance.pbix`, `src/powerbi_prep.py`, `docs/POWERBI_DAX_REFERENCE.md`, `docs/POWERBI_BUILD_GUIDE.md` |
 | 7. AI Inventory Advisor | ✅ Done | `src/ai_advisor/`, `app.py`, `docs/AI_ADVISOR_DESIGN.md` |
-| 8. Packaging & portfolio polish | 🔄 In progress | GitHub push ✅, public Streamlit deployment ✅, Power BI "open advisor" button ✅, README rewrite ✅, `docs/WRITEUP.md` ✅ — waiting on Power BI page screenshots |
+| 8. Packaging & portfolio polish | ✅ Done | GitHub push ✅, public Streamlit deployment ✅, Power BI "open advisor" button ✅, README rewrite ✅, `docs/WRITEUP.md` ✅, all 7 Power BI page screenshots ✅ |
