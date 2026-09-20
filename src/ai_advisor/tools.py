@@ -292,21 +292,47 @@ def get_replenishment_recommendations(warehouse_id: Optional[str] = None,
                                        action: Optional[str] = None, limit: int = 20) -> dict:
     """Filterable list of Phase 5 reorder recommendations. `action` matches
     one of: 'Order now — high stockout risk', 'Order now',
-    'Reduce / hold — excess stock', 'Monitor'."""
+    'Reduce / hold — excess stock', 'Monitor'.
+
+    When `action` is omitted (an open 'what needs doing here' question),
+    every non-Monitor row — any 'Order now...' or 'Reduce / hold...' action
+    — is always included in full, however low its stockout_prob_30d is
+    relative to other rows. Sorting everything by stockout_prob_30d and
+    then cutting at `limit` could otherwise bump a genuinely urgent action
+    (e.g. a large 'Order now' with a merely middling stockout probability)
+    outside the returned window while lower-priority 'Monitor' rows with a
+    higher probability fill it — silently hiding the one thing the caller
+    most needs to see. Only the routine 'Monitor' rows are subject to
+    `limit` here. When `action` IS given, `limit` applies to that filtered
+    set as before, sorted by stockout_prob_30d."""
     r = _df("replenishment")
     sub = r
     if warehouse_id:
         sub = sub[sub["warehouse_id"] == warehouse_id]
+
+    cols = ["sku", "warehouse_id", "category", "recommended_action",
+            "recommended_order_qty", "days_until_reorder", "stockout_prob_30d"]
+
     if action:
-        sub = sub[sub["recommended_action"] == action]
-    sub = sub.sort_values("stockout_prob_30d", ascending=False)
+        sub = sub[sub["recommended_action"] == action].sort_values("stockout_prob_30d", ascending=False)
+        return {
+            "matching_count": int(len(sub)),
+            "results": _row_to_records(sub[cols], limit=limit),
+        }
+
+    urgent = sub[sub["recommended_action"] != "Monitor"].sort_values("stockout_prob_30d", ascending=False)
+    monitor = sub[sub["recommended_action"] == "Monitor"].sort_values("stockout_prob_30d", ascending=False)
+    monitor_shown = max(limit - len(urgent), 0)
+    combined = pd.concat([urgent, monitor.head(monitor_shown)])
+
     return {
         "matching_count": int(len(sub)),
-        "results": _row_to_records(
-            sub[["sku", "warehouse_id", "category", "recommended_action",
-                 "recommended_order_qty", "days_until_reorder", "stockout_prob_30d"]],
-            limit=limit,
-        ),
+        "urgent_action_count": int(len(urgent)),
+        "note": ("All non-Monitor (urgent) rows are included above regardless of limit; only "
+                 f"{monitor_shown} of {len(monitor)} routine 'Monitor' rows are shown, sorted by "
+                 "stockout_prob_30d, to keep the response short — ask for a specific warehouse or "
+                 "action to see more."),
+        "results": _row_to_records(combined[cols]),
     }
 
 
