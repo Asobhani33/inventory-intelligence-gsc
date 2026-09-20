@@ -364,7 +364,14 @@ def get_transfer_recommendations() -> dict:
 
 def get_forecast_accuracy(sku: Optional[str] = None, warehouse_id: Optional[str] = None) -> dict:
     """WAPE (Weighted Absolute Percentage Error) for the Phase 4 demand
-    forecast, overall or filtered to one SKU/warehouse."""
+    forecast, overall or filtered to one SKU/warehouse. This is the
+    MONTHLY-grain model (3 held-out test months: Oct, Nov, Dec 2025) — the
+    same grain reported as this project's headline forecast-accuracy number
+    on the PDF report and microsite (WAPE ~17.2%, i.e. ~82.8% accuracy), so
+    this always matches what the report shows. Filtering to a single
+    sku/warehouse can leave very few rows (at most 3, one per test month) —
+    the caller already has a rule to flag rows_evaluated under 5 as less
+    reliable."""
     f = _df("forecast_test")
     sub = f
     if sku:
@@ -376,6 +383,7 @@ def get_forecast_accuracy(sku: Optional[str] = None, warehouse_id: Optional[str]
     denom = sub["demand_qty"].abs().sum()
     wape = float((sub["demand_qty"] - sub["prediction"]).abs().sum() / denom) if denom > 0 else None
     return {
+        "grain": "monthly",
         "rows_evaluated": int(len(sub)),
         "wape": round(wape, 4) if wape is not None else None,
         "total_actual_demand": round(float(sub["demand_qty"].sum()), 1),
@@ -528,7 +536,7 @@ TOOL_SPECS = [
     }},
     {"type": "function", "function": {
         "name": "get_forecast_accuracy",
-        "description": "WAPE for the Phase 4 demand forecast, overall or filtered to one SKU/warehouse.",
+        "description": "WAPE for the Phase 4 demand forecast (monthly grain — same as the project's headline reported accuracy), overall or filtered to one SKU/warehouse.",
         "parameters": {"type": "object", "properties": {
             "sku": {"type": "string"},
             "warehouse_id": {"type": "string"},

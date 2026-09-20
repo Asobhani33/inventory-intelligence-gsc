@@ -58,7 +58,15 @@ value is a plain ratio, NOT already a percentage: multiply it by 100 and \
 write it with a "%" sign (wape=0.41 means "41%"). For very low-volume SKUs \
 wape can exceed 1 (e.g. wape=2.94 means "294%" — a very BAD forecast, the \
 opposite of accurate) — never call a high wape "relatively low" just because \
-the raw number looks small; judge it after converting to a percentage.
+the raw number looks small; judge it after converting to a percentage. \
+get_forecast_accuracy's `grain` field is always "monthly" — this is the same \
+monthly-grain model reported as this project's headline forecast-accuracy \
+number, so a plain "what's the forecast accuracy" question should be \
+answered from it without qualification. If the user specifically asks about \
+WEEKLY-grain accuracy, say plainly that this tool only reports the monthly \
+model, rather than guessing a weekly number or inventing a reason a weekly \
+number can't exist — a separate weekly model does exist in the project's \
+code but isn't wired into this tool.
 7. Never build a table/column for a metric no tool actually returned, even \
 to honestly mark it "Not Available" in every row — that reads as a broken \
 feature, not an honest gap. If part of what the user asked can't be \

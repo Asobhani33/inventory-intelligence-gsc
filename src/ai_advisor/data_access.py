@@ -44,7 +44,14 @@ def load_all(root: Path | None = None) -> dict[str, pd.DataFrame]:
         "unmet_shortage": pd.read_parquet(reco / "unmet_shortage_fresh_po.parquet"),
         "transfer_cost_matrix": pd.read_parquet(reco / "transfer_cost_matrix.parquet"),
         "monthly_diagnostic": pd.read_parquet(proc / "kpi_tables" / "monthly_inventory_diagnostic.parquet"),
-        "forecast_test": pd.read_parquet(proc / "forecast_test_predictions.parquet"),
+        # Monthly-grain forecast test set (3 held-out months) — this is the
+        # grain reported as the project's headline forecast-accuracy number
+        # (WAPE / MASE on the PDF report and microsite), so get_forecast_accuracy
+        # answers with the same number the report shows. The weekly-grain
+        # model still exists and is trained in src/predictive_models.py /
+        # notebooks/04_predictive_analytics.ipynb (forecast_test_predictions.parquet),
+        # it's just not what the AI Advisor is wired to here.
+        "forecast_test": pd.read_parquet(proc / "forecast_test_predictions_monthly.parquet"),
         "dim_sku": pd.read_parquet(proc / "dim_sku.parquet"),
         "dim_warehouse": pd.read_parquet(proc / "dim_warehouse.parquet"),
     }
