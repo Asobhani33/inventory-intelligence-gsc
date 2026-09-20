@@ -86,7 +86,7 @@ on the report's "AI Advisor" page opens the live chatbot in a browser tab
 | Health tiers | 823 Healthy · 1,190 Watch · 22 Critical |
 | Avg. service level | 98.98% |
 | Avg. inventory turnover | 8.1x/yr |
-| Demand forecast accuracy | WAPE 40.9% (see "Honest limitations" — this is reported, not smoothed over) |
+| Demand forecast accuracy | WAPE 33.8% (see "Honest limitations" — this is reported, not smoothed over) |
 | Open replenishment actions | 54 SKU×warehouse rows need a fresh PO now |
 | Prescriptive transfer plan | 2 units transferable network-wide; $18.4K of shortage has no matching excess elsewhere and correctly routes to a fresh PO instead of an invented transfer |
 
@@ -161,10 +161,23 @@ streamlit run app.py
 This project documents its real limitations rather than hiding them —
 see each linked doc for the full reasoning:
 
-- **Forecast accuracy (WAPE 40.9%)** is reported as-is. The demand series
+- **Forecast accuracy (WAPE 33.8%)** is reported as-is. The demand series
   is synthetic and intentionally noisy; a production forecast against real
   ERP demand history would be expected to do meaningfully better, but this
-  project doesn't inflate the number to look good.
+  project doesn't inflate the number to look good. (An earlier version of
+  the model — plain regression objective, a fixed round count — scored
+  WAPE 40.9%; switching to a Tweedie objective, suited to this demand
+  series' zero-inflation, plus early stopping against a held-out
+  validation window instead of a guessed fixed round count, improved this
+  to 39.9%. A separate boundary bug was then found and fixed: the raw
+  daily data ends mid-week, so the last weekly test bucket was silently
+  being built from 3 days of demand instead of 7, inflating WAPE for every
+  method equally; excluding that incomplete trailing week brought the
+  reported number to 33.8%, without changing any features or
+  hyperparameters. A monthly-granularity version of this same model,
+  built for cases where weekly noise isn't the right lens, reaches 17.2%
+  WAPE — see the project writeup for why the two aren't directly
+  comparable.)
 - **Transfer costing is illustrative**, not derived from the real Brunel
   freight-rate data — that dataset turned out to record rates for a single
   hub port, unsuitable for a general inter-warehouse cost matrix. Documented
