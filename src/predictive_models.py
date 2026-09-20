@@ -72,6 +72,18 @@ def build_weekly_panel(fact_demand: pd.DataFrame, dim_sku: pd.DataFrame,
     # day BEFORE Monday — a classic pandas off-by-one that silently
     # misaligns any later `date_range(freq="W-MON")` reindex against it).
     df["week"] = (df["date"] - pd.to_timedelta(df["date"].dt.weekday, unit="D")).dt.normalize()
+
+    # The raw daily data ends on a fixed date (currently 2025-12-31), which
+    # does not fall on a week boundary. Without this guard, the last Monday
+    # bucket would silently sum whatever partial run of days exists (as few
+    # as 1) into a full week's demand_qty, understating it and inflating
+    # WAPE for every method identically — not a real accuracy signal, just
+    # a boundary artifact. Drop any week whose 7-day window would extend
+    # past the last real date, so every week used below (train, val, and
+    # especially the reported test window) is a genuine complete week.
+    max_date = df["date"].max()
+    df = df[df["week"] + pd.Timedelta(days=6) <= max_date]
+
     weekly = df.groupby(["sku", "warehouse_id", "week"])["demand_qty"].sum().reset_index()
 
     # ensure every (sku, warehouse) has a complete, gap-free weekly series
