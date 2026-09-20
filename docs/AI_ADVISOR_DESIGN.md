@@ -25,7 +25,7 @@ in `data/processed/`.
 ```
 app.py (Streamlit UI)
   -> src/ai_advisor/agent.py   (OpenAI tool-calling loop + system prompt)
-       -> src/ai_advisor/tools.py        (10 tool functions + their JSON schemas)
+       -> src/ai_advisor/tools.py        (12 tool functions + their JSON schemas)
             -> src/ai_advisor/data_access.py   (loads/caches the processed parquet tables)
 ```
 
@@ -43,13 +43,13 @@ app.py (Streamlit UI)
   entirely. `load_all()` never touches the raw fact tables or the
   database file — only the small recommendation, KPI, forecast, and
   dimension tables the tools actually need.
-- **`tools.py`** — ten narrow functions, each answering one kind of
+- **`tools.py`** — 12 narrow functions, each answering one kind of
   question (network summary, one warehouse's detail, network- or
   warehouse-level inventory trend over time, why inventory moved,
-  stockout risk, one SKU's detail, replenishment recommendations, transfer
-  plan, forecast accuracy, health-score breakdown). Every function returns
-  plain JSON-serializable data — no free text — so there's nothing for the
-  model to embellish.
+  stockout risk, one SKU's detail, excess inventory, monthly consumption
+  value, replenishment recommendations, transfer plan, forecast accuracy,
+  health-score breakdown). Every function returns plain JSON-serializable
+  data — no free text — so there's nothing for the model to embellish.
 - **`agent.py`** — the OpenAI chat-completions loop with `tools=` set to
   the schemas in `tools.py`. The system prompt is explicit: answer only
   from tool output, say so when a tool returns nothing, and surface any
@@ -139,7 +139,7 @@ just not literally inside the report canvas.
 
 - No conversation memory beyond the current browser session (Streamlit's
   `session_state` resets on page reload).
-- The ten tools cover the questions this project's data can actually
+- The 12 tools cover the questions this project's data can actually
   answer well — they don't attempt open-ended SQL generation, which would
   risk the model writing an incorrect query against a real production
   database. For a portfolio project this trade-off (safety and precision

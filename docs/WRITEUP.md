@@ -55,7 +55,7 @@ inventing a transfer that wouldn't actually solve the shortage.
 
 **5. Decision layer, not just analysis layer.** A 7-page Power BI report
 turns all of the above into something a planner would actually open every
-morning, and a generative-AI advisor (OpenAI tool-calling over 11 typed
+morning, and a generative-AI advisor (OpenAI tool-calling over 12 typed
 Python functions, never free-text generation against raw data) lets
 anyone ask the network a question in plain language and get back an exact,
 traceable number — deployed publicly so the chatbot isn't a local demo
@@ -97,7 +97,7 @@ built against a real ERP (SAP, Oracle, Infor, etc.) would need:
   attributions instead of a transparent rule-based approximation.
 - **Guardrails well beyond this project's tool-calling design** before
   allowing any kind of open-ended query generation against a live
-  production database — this project deliberately avoided that (ten fixed,
+  production database — this project deliberately avoided that (12 fixed,
   narrow tools instead of "let the model write SQL") precisely because a
   real ERP raises the cost of a wrong query enormously; a production
   version would need row-level access control, query auditing, and
