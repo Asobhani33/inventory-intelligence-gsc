@@ -108,7 +108,7 @@ Screenshots of every page:
 
 ## AI Inventory Advisor
 
-A Streamlit chat app backed by OpenAI tool-calling — ten Python functions
+A Streamlit chat app backed by OpenAI tool-calling — 12 Python functions
 that read the project's own processed tables (never a free-text guess), so
 every number the Advisor states is traceable back to a real
 `data/processed/` file. Deployed publicly on Streamlit Community Cloud so
