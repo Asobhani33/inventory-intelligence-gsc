@@ -133,13 +133,21 @@ def why_is_inventory_high(warehouse_id: str, months_back: int = 3) -> dict:
 def get_inventory_trend(warehouse_id: Optional[str] = None, months_back: int = 6) -> dict:
     """Month-by-month total inventory value trend — for the whole network
     if warehouse_id is omitted, or for one warehouse if given. Also returns
-    the single biggest month-over-month increase and decrease (by ABC
-    class) in the window, so this answers both 'why did inventory grow'
-    and 'why did it shrink' — unlike why_is_inventory_high, which only
-    looks at one warehouse's excess drivers. Prefer this tool for any
-    general inventory-trend question; use why_is_inventory_high only when
-    the user specifically wants the excess-SKU-level detail for one
-    warehouse."""
+    the single biggest month-over-month increase and decrease in the
+    window, so this answers both 'why did inventory grow' and 'why did it
+    shrink' — unlike why_is_inventory_high, which only looks at one
+    warehouse's excess drivers. Prefer this tool for any general
+    inventory-trend question; use why_is_inventory_high only when the user
+    specifically wants the excess-SKU-level detail for one warehouse.
+
+    Network-wide (warehouse_id omitted), the biggest mover is found at the
+    WAREHOUSE level (each warehouse's own A+B+C classes summed first, then
+    compared) — not on a single warehouse+class row, which would name a
+    warehouse whose one class moved a lot even if its other classes moved
+    the other way and mostly offset it. Scoped to one warehouse, the
+    biggest mover is found at the ABC-class level instead, since warehouse
+    is already fixed and class is the only remaining dimension to compare.
+    """
     m = _df("monthly_diagnostic")
     sub = m if warehouse_id is None else m[m["warehouse_id"] == warehouse_id]
     if sub.empty:
@@ -149,7 +157,23 @@ def get_inventory_trend(warehouse_id: Optional[str] = None, months_back: int = 6
     monthly_total["delta"] = monthly_total["inventory_value"].diff()
     monthly_total = monthly_total.tail(months_back)
 
-    detail = sub.dropna(subset=["delta"]).sort_values("month").tail(months_back * sub["abc_class"].nunique())
+    if warehouse_id is None:
+        # Sum each warehouse's classes together FIRST, per month, so the
+        # comparison below is one number per warehouse (its true net
+        # change), not one number per warehouse+class segment.
+        mover_basis = (
+            sub.groupby(["month", "warehouse_id"])["inventory_value"].sum().reset_index()
+        )
+        mover_basis = mover_basis.sort_values(["warehouse_id", "month"])
+        mover_basis["delta"] = mover_basis.groupby("warehouse_id")["inventory_value"].diff()
+        mover_label = "whole warehouse (all ABC classes summed first, then compared across warehouses)"
+    else:
+        mover_basis = sub.sort_values(["abc_class", "month"]).copy()
+        mover_basis["delta"] = mover_basis.groupby("abc_class")["inventory_value"].diff()
+        mover_label = "one ABC class within this warehouse (warehouse is already fixed by the request)"
+
+    recent_months = monthly_total["month"].tolist()
+    detail = mover_basis[mover_basis["month"].isin(recent_months)].dropna(subset=["delta"])
     biggest_increase = detail.sort_values("delta", ascending=False).head(1)
     biggest_decrease = detail.sort_values("delta", ascending=True).head(1)
 
@@ -158,6 +182,7 @@ def get_inventory_trend(warehouse_id: Optional[str] = None, months_back: int = 6
         "monthly_total_value_trend": _row_to_records(
             monthly_total.rename(columns={"inventory_value": "total_inventory_value"})
         ),
+        "biggest_mover_grain": mover_label,
         "biggest_increase_in_window": _row_to_records(biggest_increase)[0] if len(biggest_increase) else None,
         "biggest_decrease_in_window": _row_to_records(biggest_decrease)[0] if len(biggest_decrease) else None,
     }
