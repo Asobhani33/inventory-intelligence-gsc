@@ -10,7 +10,12 @@ benchmark referenced in the Inventory Intelligence Sourcebook):
 1. Weekly demand forecasting (regression, LightGBM) — evaluated against
    classical per-series baselines (moving average, Exponential Smoothing)
    on a representative sample, to justify the global-model choice rather
-   than assert it.
+   than assert it. A monthly variant of the same model (same data, same
+   Tweedie/LightGBM methodology, coarser time grain) is trained alongside
+   it — this monthly model is the one reported as the project's headline
+   forecast-accuracy number (WAPE / MASE / feature importance on the PDF
+   report and microsite), so it lives here as real, runnable code rather
+   than only as report text.
 2. Stockout-risk classification (7 / 14 / 30-day horizons, LightGBM).
 
 Plus an Inventory Health Score that blends both models' outputs with the
@@ -32,6 +37,8 @@ warnings.filterwarnings("ignore")
 
 RANDOM_STATE = 42
 FORECAST_HORIZON_WEEKS = 8   # weeks held out for testing
+MONTHLY_TEST_MONTHS = 3      # calendar months held out for testing (monthly model)
+MONTHLY_VAL_MONTHS = 3       # calendar months used only for early-stopping (monthly model)
 STOCKOUT_HORIZONS = [7, 14, 30]
 
 
@@ -196,6 +203,137 @@ def classical_baseline_comparison(weekly: pd.DataFrame, sample_pairs: list[tuple
 
 
 # --------------------------------------------------------------------------
+# 1b. Demand forecasting — monthly variant (same data & methodology as the
+# weekly model above, aggregated to calendar months instead of ISO weeks).
+# This is the granularity reported as the project's headline forecast
+# accuracy (WAPE / MASE / feature importance) — kept as real, runnable code
+# here rather than only existing as report text.
+# --------------------------------------------------------------------------
+
+def build_monthly_panel(fact_demand: pd.DataFrame, dim_sku: pd.DataFrame,
+                         dim_wh: pd.DataFrame) -> pd.DataFrame:
+    """Same real fact_demand data as build_weekly_panel, aggregated to
+    calendar months. Calendar months are already complete, real-calendar-day
+    buckets (verified: all 24 months in the source data have exactly their
+    true number of days present, none partial), so this doesn't need the
+    boundary guard build_weekly_panel applies for its Monday-anchored weeks."""
+    df = fact_demand.copy()
+    df["month"] = df["date"].values.astype("datetime64[M]")
+    monthly = df.groupby(["sku", "warehouse_id", "month"])["demand_qty"].sum().reset_index()
+
+    # ensure every (sku, warehouse) has a complete, gap-free monthly series
+    all_months = pd.date_range(monthly["month"].min(), monthly["month"].max(), freq="MS")
+    pairs = monthly[["sku", "warehouse_id"]].drop_duplicates()
+    full_index = pairs.merge(pd.DataFrame({"month": all_months}), how="cross")
+    monthly = full_index.merge(monthly, on=["sku", "warehouse_id", "month"], how="left")
+    monthly["demand_qty"] = monthly["demand_qty"].fillna(0)
+
+    monthly = monthly.merge(dim_sku[["sku", "unit_cost", "abc_class", "category", "base_annual_demand"]], on="sku")
+    monthly = monthly.merge(dim_wh[["warehouse_id", "region", "handling_cost_per_unit"]], on="warehouse_id")
+    return monthly.sort_values(["sku", "warehouse_id", "month"]).reset_index(drop=True)
+
+
+def add_monthly_forecast_features(monthly: pd.DataFrame) -> pd.DataFrame:
+    df = monthly.copy()
+    g = df.groupby(["sku", "warehouse_id"])["demand_qty"]
+    # Shorter lag/rolling windows than the weekly model (lag_1..3, a 3-month
+    # rolling window instead of 4/8-week) since 24 months of history gives
+    # far fewer periods per series than the weekly panel does.
+    for lag in [1, 2, 3]:
+        df[f"lag_{lag}"] = g.shift(lag)
+    df["rolling_mean_3"] = g.shift(1).rolling(3).mean()
+    df["rolling_std_3"] = g.shift(1).rolling(3).std()
+    df["month_of_year"] = df["month"].dt.month
+    for cat in ["sku", "warehouse_id", "abc_class", "category", "region"]:
+        df[cat] = df[cat].astype("category")
+    return df
+
+
+def train_monthly_forecast_model(monthly_feat: pd.DataFrame) -> dict:
+    feature_cols = [
+        "lag_1", "lag_2", "lag_3", "rolling_mean_3", "rolling_std_3",
+        "month_of_year", "unit_cost", "handling_cost_per_unit",
+        "sku", "warehouse_id", "abc_class", "category", "region",
+    ]
+    df = monthly_feat.dropna(subset=["lag_3"]).copy()  # need 3 months of history before training starts
+    months_sorted = sorted(df["month"].unique())
+    test_months = months_sorted[-MONTHLY_TEST_MONTHS:]
+    val_months = months_sorted[-(MONTHLY_TEST_MONTHS + MONTHLY_VAL_MONTHS):-MONTHLY_TEST_MONTHS]
+    train = df[~df["month"].isin(test_months) & ~df["month"].isin(val_months)]
+    val = df[df["month"].isin(val_months)]
+    test = df[df["month"].isin(test_months)]
+
+    cat_features = ["sku", "warehouse_id", "abc_class", "category", "region"]
+    train_set = lgb.Dataset(train[feature_cols], label=train["demand_qty"], categorical_feature=cat_features)
+    val_set = lgb.Dataset(val[feature_cols], label=val["demand_qty"], categorical_feature=cat_features,
+                           reference=train_set)
+
+    # Identical Tweedie objective + early-stopping setup as train_forecast_model
+    # (the weekly model) — this is intentionally the same methodology at a
+    # coarser time grain, not a separately tuned model.
+    params = dict(objective="tweedie", tweedie_variance_power=1.5, metric="mae",
+                  learning_rate=0.05, num_leaves=63, min_data_in_leaf=30,
+                  feature_fraction=0.85, bagging_fraction=0.85, bagging_freq=1,
+                  verbose=-1, seed=RANDOM_STATE)
+    model = lgb.train(params, train_set, num_boost_round=2000, valid_sets=[val_set],
+                       callbacks=[lgb.early_stopping(50, verbose=False)])
+
+    test = test.copy()
+    test["prediction"] = model.predict(test[feature_cols]).clip(min=0)
+
+    naive_mae = float((test["demand_qty"] - test["lag_1"]).abs().mean())
+    wape = _wape(test["demand_qty"].values, test["prediction"].values)
+    mase = _mase(test["demand_qty"].values, test["prediction"].values, naive_mae)
+
+    feature_importance = pd.DataFrame({
+        "feature": feature_cols,
+        "gain": model.feature_importance(importance_type="gain"),
+    })
+    feature_importance["pct"] = feature_importance["gain"] / feature_importance["gain"].sum() * 100
+    feature_importance = feature_importance.sort_values("pct", ascending=False).reset_index(drop=True)
+
+    return {"model": model, "feature_cols": feature_cols, "cat_features": cat_features,
+            "test_predictions": test, "wape": wape, "mase": mase,
+            "best_iteration": model.best_iteration, "feature_importance": feature_importance}
+
+
+def monthly_forecast_baseline_comparison(test_predictions: pd.DataFrame) -> dict:
+    """Naive (lag_1) and 3-month Moving-Average baselines vs. the monthly
+    LightGBM model, computed directly on the full monthly test set (unlike
+    classical_baseline_comparison's per-series sample for the weekly model —
+    the monthly test set already spans all 2,035 series, so no further
+    sampling is needed). Also the $-impact comparison behind the monthly
+    savings figures reported alongside the weekly model's own $2.87M/$3.11M
+    dollar-impact comparison — these are the monthly-grain equivalents, not
+    a replacement for that separate weekly-grain analysis."""
+    test = test_predictions.copy()
+    test["ma_pred"] = test["rolling_mean_3"].fillna(0).clip(lower=0)
+
+    wape_naive = _wape(test["demand_qty"].values, test["lag_1"].values)
+    wape_ma = _wape(test["demand_qty"].values, test["ma_pred"].values)
+    wape_model = _wape(test["demand_qty"].values, test["prediction"].values)
+
+    naive_dollar = float(((test["demand_qty"] - test["lag_1"]).abs() * test["unit_cost"]).sum())
+    ma_dollar = float(((test["demand_qty"] - test["ma_pred"]).abs() * test["unit_cost"]).sum())
+    model_dollar = float(((test["demand_qty"] - test["prediction"]).abs() * test["unit_cost"]).sum())
+
+    months_covered = int(test["month"].nunique())
+    savings_window = ma_dollar - model_dollar
+    # Test window is MONTHLY_TEST_MONTHS=3 months; scale to a 12-month run
+    # rate for an apples-to-apples annualized figure.
+    savings_annualized = savings_window * (12 / months_covered) if months_covered else float("nan")
+
+    return {
+        "months_covered": months_covered,
+        "wape_naive": wape_naive, "wape_moving_avg_3mo": wape_ma, "wape_model": wape_model,
+        "vs_moving_avg_pct": (1 - wape_model / wape_ma) * 100 if wape_ma else float("nan"),
+        "vs_naive_pct": (1 - wape_model / wape_naive) * 100 if wape_naive else float("nan"),
+        "dollar_err_naive": naive_dollar, "dollar_err_moving_avg_3mo": ma_dollar, "dollar_err_model": model_dollar,
+        "dollar_savings_test_window": savings_window, "dollar_savings_annualized": savings_annualized,
+    }
+
+
+# --------------------------------------------------------------------------
 # 2. Stockout-risk classification
 # --------------------------------------------------------------------------
 
@@ -311,9 +449,21 @@ if __name__ == "__main__":
     weekly = build_weekly_panel(t["fact_demand"], t["dim_sku"], t["dim_warehouse"])
     weekly_feat = add_forecast_features(weekly)
     fc = train_forecast_model(weekly_feat)
-    print(f"Forecast model — WAPE: {fc['wape']:.3f}  MASE: {fc['mase']:.3f}")
+    print(f"Forecast model (weekly) — WAPE: {fc['wape']:.3f}  MASE: {fc['mase']:.3f}")
 
     fc["test_predictions"].to_parquet(out_dir / "forecast_test_predictions.parquet", index=False)
+
+    monthly = build_monthly_panel(t["fact_demand"], t["dim_sku"], t["dim_warehouse"])
+    monthly_feat = add_monthly_forecast_features(monthly)
+    fc_m = train_monthly_forecast_model(monthly_feat)
+    print(f"Forecast model (monthly) — WAPE: {fc_m['wape']:.3f}  MASE: {fc_m['mase']:.3f}  "
+          f"accuracy: {(1 - fc_m['wape']) * 100:.1f}%")
+    baseline_m = monthly_forecast_baseline_comparison(fc_m["test_predictions"])
+    print(f"  vs 3-month moving average: {baseline_m['vs_moving_avg_pct']:.1f}%   "
+          f"vs naive: {baseline_m['vs_naive_pct']:.1f}%")
+
+    fc_m["test_predictions"].to_parquet(out_dir / "forecast_test_predictions_monthly.parquet", index=False)
+    fc_m["feature_importance"].to_csv(out_dir / "forecast_feature_importance_monthly.csv", index=False)
 
     stockout_df = build_stockout_dataset(t["fact_inventory"], t["fact_demand"], t["dim_sku"],
                                           t["dim_warehouse"], t["dim_replenishment_policy"])
