@@ -95,7 +95,7 @@ Add a page (`+` at the bottom tab bar) for each. Suggested visuals per page
 - Bar chart: `Excess Value` by `dim_warehouse[warehouse_id]` (this is where the $693K in PLANT03 shows up)
 
 ### Page 3 — Demand Forecast
-- KPI cards: `[WAPE]`, `[Forecast Accuracy]` (or the static 0.409/0.786 headline)
+- KPI cards: `[WAPE]`, `[Forecast Accuracy]` (live DAX measures, not a static card — see DAX reference)
 - Line chart: `predictive_forecast_test[demand_qty]` vs `[prediction]` over `week`, filtered to a slicer-selected SKU
 - Table: `predictive_forecast_test` sorted by largest forecast error
 

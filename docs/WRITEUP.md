@@ -39,7 +39,7 @@ shortage-driven ordering) — not just that it moved.
 
 **3. Predictive.** Two models per SKU×warehouse: a demand forecast
 (LightGBM/statsmodels) and a 30-day stockout-risk classifier, both
-evaluated honestly (forecast WAPE reported as 39.9%, using a global
+evaluated honestly (forecast WAPE reported as 33.8%, using a global
 LightGBM model with a Tweedie objective — suited to this demand series'
 zero-inflation, 22% of weekly rows are exactly zero — and early stopping
 against a held-out validation window; the synthetic demand series is
@@ -85,7 +85,7 @@ built against a real ERP (SAP, Oracle, Infor, etc.) would need:
 - **Real demand and lead-time history** in place of the synthetic layer —
   the forecast and stockout-risk models would very likely perform
   meaningfully better against real transaction history than against this
-  project's intentionally-noisy synthetic demand (WAPE 39.9% here should
+  project's intentionally-noisy synthetic demand (WAPE 33.8% here should
   not be read as a ceiling on the approach itself).
 - **Real freight/transfer cost data** by lane, replacing the
   region-surcharge approximation this project uses — this is the single

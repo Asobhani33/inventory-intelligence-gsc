@@ -83,7 +83,7 @@ DIVIDE(
 )
 ```
 
-Headline card for this page: **WAPE 0.409 · MASE 0.786** (fixed values from the Phase 4 model run — a static text card or reference these live measures on the test-week slice).
+Headline card for this page: reference the live `[WAPE]` / `[Forecast Accuracy]` measures above (not a static text card) so the card always matches whatever `predictive_forecast_test` currently holds. As of the current model run (8 complete test weeks, Nov 3 &ndash; Dec 22 2025, after excluding the incomplete trailing week caused by the raw data ending mid-week): **WAPE 0.338 &middot; MASE 0.733**.
 
 ---
 
